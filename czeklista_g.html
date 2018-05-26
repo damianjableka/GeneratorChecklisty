@@ -1,0 +1,1202 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Frameset//PL">
+<html><head>
+ <meta http-equiv="Content-type" content="text/html; charset=UTF-8">
+ <meta http-equiv="Content-Language" content="pl">
+ <meta name="Author" content="Damian Jabłeka">
+<title>Generator Czeklisty</title>
+
+  
+<script type="text/javascript">
+// w kolejnej komurce kalnedarza adresy pod ktorymi sie znalazly dane wpisy
+//potem 3 sorty najpierw po spółce potem po czynnosci a potem po dacie. tak aby sort był odwrotny
+//v9 z 2018-01-11 22:33 działa global bez 31!
+var output_s=new Array("sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n");//v3
+
+var spolki=new Array("comapny1","comapny2","comapny3","comapny4","comapny5","comapny6","comapny7","comapny8","comapny9");
+var osoby=new Array("Person 1","Person 2","Person 3","Person 4","Person 5","Person 6","Person 7","Person 8","Person 9")
+  
+  var  zawartoscArkusza=""
+var ArkuszeExela=new Array();
+
+function download() {
+
+  console.log(zawartoscArkusza)
+  var element = document.createElement('a');
+
+ // var texta=output_s[text];
+ // var filenamea=spolki[filename]+".csv";
+  
+  element.setAttribute('href', 'data:application/vnd.ms-excel;charset=utf-8,'+zawartoscArkusza);
+  
+  element.setAttribute('download', "checklista.xls");
+
+ element.target = '_blank';
+  element.style.display = 'none';
+  
+  document.body.appendChild(element);
+
+  element.click();
+
+  document.body.removeChild(element);
+}
+
+
+function zero(x) {
+ return (x<10)?("0"+x):x;
+ }
+
+  function parseCSV(str) {
+    var arr = [];
+    var quote = false;  // true means we're inside a quoted field
+
+    // iterate over each character, keep track of current row and column (of the returned array)
+    for (var row = col = c = 0; c < str.length; c++) {
+        var cc = str[c], nc = str[c+1];        // current character, next character
+        arr[row] = arr[row] || [];             // create a new row if necessary
+        arr[row][col] = arr[row][col] || '';   // create a new column (start with empty string) if necessary
+
+        // If the current character is a quotation mark, and we're inside a
+        // quoted field, and the next character is also a quotation mark,
+        // add a quotation mark to the current column and skip the next character
+        if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }  
+
+        // If it's just one quotation mark, begin/end quoted field
+        if (cc == '"') { quote = !quote; continue; }
+
+        // If it's a comma and we're not in a quoted field, move on to the next column
+        if (cc == ';' && !quote) { ++col; continue; }
+
+        // If it's a newline (CRLF) and we're not in a quoted field, skip the next character
+        // and move on to the next row and move to column 0 of that new row
+        if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+
+        // If it's a newline (LF or CR) and we're not in a quoted field,
+        // move on to the next row and move to column 0 of that new row
+        if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+        if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+
+        // Otherwise, append the current character to the current column
+        arr[row][col] += cc;
+    }
+    return arr;
+}
+ 
+
+function readTextFile(file)
+{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+                alert(allText);
+            }
+        }
+    }
+    rawFile.send(null);
+}
+
+
+function start(){
+ //document.getElementById('down').disabled=true;
+
+ var files = document.getElementById('files').files;
+ 
+ 
+ 
+    if (!files.length) {
+      document.getElementById('tt').textContent="Wybierz plik!"
+      return;
+    }
+	var rawData;
+
+     var reader = new FileReader();
+
+		reader.onload = function(e) {
+			rawData = reader.result;
+			rozum(rawData);//alert(rawData);
+		}
+		
+	 var file = files[0];
+	reader.readAsText(file)	
+
+}
+
+
+ function DniWMiesiacu(anyDateInMonth) {
+      return new Date(anyDateInMonth.getYear(), 
+                    anyDateInMonth.getMonth()+1, 
+                    0).getDate();}
+					
+					
+
+
+function dzienT(milisekundy)
+ {
+  var tendzien=new Date(milisekundy)
+  return tendzien.getDay();
+ }
+
+
+function Fmiesiace()
+ {
+  akt=new Date()
+  e=document.getElementById("miesiace")
+   for(i=-1;i<3;i++){
+    rr=new Date()
+	rr.setDate(15)
+	rr.setMonth(akt.getMonth()+i)
+	locale = "pl-pl"
+    
+	
+	var option = document.createElement("option");
+						option.setAttribute("value", rr.getTime());
+						option.text = rr.toLocaleString(locale, { month: "long" })+" "+rr.getFullYear();
+						
+						if(i==1)
+						  option.selected=true;
+						e.appendChild(option);
+	
+   }
+ }
+
+
+function rozum(text){
+
+ output_s.length=0
+ output_s=["sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n","sep=;\r\n"];
+
+ var g=new Array();
+ g=parseCSV(text);
+
+ document.getElementById('main').textContent=g[0].length;
+ kolumny=g[0].length;
+ wiersze=g.length;
+
+
+ var dni_tygodnia=new Array("nd","pn","wt","sr","czw","pt","so");
+  
+
+  	var l_sp=new Array()
+  //opis csv=
+  //  0: nazwa czynnosci
+  // 1: dzien roboczy
+  //2: dzien tygodnia
+  //3: tydzien
+  //4: lista spółek
+  
+  
+  var akt_czas=new Date();//tu można zrobić wybór miesiąca z rozwijanego menu
+  
+    
+ em=document.getElementById("miesiace")
+ console.log(em.value)
+ 
+  var NastepnyM=new Date()//(akt_czas.getTime()+(15*24*60*60*1000))) //domyślnie w 15 ostatni dni miesiąca i w 15 pierwszysch nastepnego robimy dla tego miesiaca.
+      NastepnyM.setTime(em.value)
+  	 NastepnyM.setHours(0)
+	 NastepnyM.setMinutes(1);
+	//dlugosc miesiaca.      
+	var dni_w_miesiacu=DniWMiesiacu(NastepnyM);	  
+		  
+	var roboczy=0	
+
+	 var kal=new Array();
+	 kal.length=0;
+	 var el=0;
+  
+	for(i=1;i<=dni_w_miesiacu;i++){  // petla po kolejnych dniach danego miesiaca
+	
+	 //definicja noweg obiektu data po którym inkrementujemy
+	
+	var biezacy=new Date()//(NastepnyM.getFullYear(),NastepnyM.getMonth()+1,i,1,1,1,1);
+     biezacy.setDate(i);
+	 biezacy.setMonth(NastepnyM.getMonth());
+	 biezacy.setFullYear(NastepnyM.getFullYear());
+
+	 
+     tydzien=Math.floor(biezacy.getDate()/7)+1;
+
+	 if(biezacy.getDay()!=0&&biezacy.getDay()!=6)  //dzien roboczy
+	 {
+	
+	//opuszczamy swieta i dni wolne od pracy ale tylko w naliczaniu dni roboczych można to pominać w przypadku dni tygodnia reguła z następnym roboczym
+	
+	// console.log("pierwszy if: "+document.getElementById("DniWolne").value.split(",").indexOf(i.toString()))
+		  if(document.getElementById("DniWolne").value.split(",").indexOf(i.toString())==-1)
+		   {
+			roboczy++; 
+			}
+		else	{ 
+	     for(dj=0;dj<spolki.length;dj++)
+             {
+			    //v3 //to dodaje dzien wolny dla kazdej spolki
+				//console.log("dodajmey że dzien wolny?")
+				kal[el]=new Array(biezacy.getTime(),biezacy.getFullYear()+"."+zero((biezacy.getMonth()+1))+"."+zero(biezacy.getDate()),biezacy.toLocaleDateString('en-US', { weekday: 'long' })+" A holiday free from work",spolki[dj].slice(),"","");
+			//	console.log(kal[el][2])
+				el++;
+				}
+			 
+	   }
+		   z=0;
+	  for(k=0;k<wiersze;k++){ //nie ma naglowkow
+	  if(document.getElementById("DniWolne").value.split(",").indexOf(i.toString())==-1)
+	   {
+	
+	   if(roboczy==g[k][1]){
+	   
+		//rozmnozenie dla spolek i dodanie nazwisk usuniecie niepotrzbnych kolumn
+					l_sp=new Array();
+					l_sp.length=0;
+		if(g[k][4]) //sprawdza czy dla wszystkich spolek czy tylko dla wpisanych
+		{
+          l_sp=g[k][4].split(",");		 
+		}
+		else
+		 l_sp=spolki.slice();
+		 
+           for(dj=0;dj<l_sp.length;dj++)
+		   {
+		    //v3:
+			kal[el]=new Array(biezacy.getTime(),biezacy.getFullYear()+"."+zero((biezacy.getMonth()+1))+"."+zero(biezacy.getDate()),biezacy.toLocaleDateString('en-US', { weekday: 'long' }),l_sp[dj].slice(),osoby[spolki.indexOf(l_sp[dj])],g[k][0]);
+			el++;
+			}
+	     }
+	   }
+	   //---------------dzien roboczy koniec
+	   
+	   
+	   if(g[k][2]==dni_tygodnia[biezacy.getDay()])
+	   {
+	   
+	    if(g[k][3])//sprawdzamy czy istnieja wypisane tygodnie w ktorych ma byc ten dzien
+	    {
+		 
+	     var myArray = g[k][3].match(/[0-5]/g);// wypisuejmy wszystkie dni w ktorych ma byc ten 
+		 
+		  for(zz=0;zz<myArray.length;zz++)  //jedziemy po zawartosci komurki z tygodniami
+		   {
+		 //  console.log(myArray[zz]+"-"+tydzien)
+		    if(myArray[zz]==tydzien){ // dzien tygodnia sie zgadza i zgadza się tydzień
+			  
+			//  console.log(document.getElementById("DniWolne").value.split(",").indexOf(i.toString()))
+			  //sprawdzenie czy to nie jest przypadkiem dzień wolny i jak tak to przesuniecie na nastepny dzien roboczy ewentualnie poprzedni jesli koniec miesiąca
+			   var data_dnia=new Date();
+			   if(document.getElementById("DniWolne").value.split(",").indexOf(i.toString())==-1)
+			    {
+				 data_dnia.setTime(biezacy.getTime()) //jezeli dzien ktory ma byc nie jest wolny to ustalamy jego date
+				}
+				else
+				{ // dnien jest wolny
+				  //if(biezacy.getDay==)  
+				  //dopuki 
+				  var next=0;
+				  var prev=0;
+				  tendzien=new Date()
+				  //szukamy w przod az do dnia w ktorym bedzie normalny roboczy dzien chyba ze to bedzie poza miesiacem wtedy ustalamy na 1000
+				  while(document.getElementById("DniWolne").value.split(",").indexOf((i+next).toString())!=-1||dzienT(biezacy.getTime()+next*24*3600*1000)==0||dzienT(biezacy.getTime()+next*24*3600*1000)==6){
+				   next++;
+				   if((i+next)>dni_w_miesiacu){
+				     next=1000;
+				     break;
+				    }
+				   }
+				   				  //szukamy w tyl az do dnia w ktorym bedzie normalny roboczy dzien chyba ze to bedzie przed miesiacem wtedy ustalamy na 1000
+				   while(document.getElementById("DniWolne").value.split(",").indexOf((i-prev).toString())!=-1||dzienT(biezacy.getTime()-prev*24*3600*1000)==0||dzienT(biezacy.getTime()-prev*24*3600*1000)==6){
+				   prev++;
+				   if((i-prev)<0){
+				     prev=1000;
+				     break;
+				    }
+				   }
+				  //jezeli w przod jest wieksze badx rowne poprzedzajacym to ustalamy nastepny
+				   if(next<=prev)
+				    {
+					data_dnia.setTime(biezacy.getTime()+next*24*3600*1000)
+					}
+					else
+					{
+					data_dnia.setTime(biezacy.getTime()-prev*24*3600*1000)
+					}
+				}
+			    
+			  //rozmnozenie dla spolek i dodanie nazwisk usuniecie niepotrzbnych kolumn
+		    		
+					l_sp=new Array();
+					l_sp.length=0;
+		
+	      	if(g[k][4]!="") //sprawdza czy dla wszystkich spolek czy tylko dla wpisanych
+	     	{
+             l_sp=g[k][4].split(",");		 
+		    }
+		    else
+		    {
+		     l_sp=spolki.slice();
+		    }
+           for(dj=0;dj<l_sp.length;dj++)
+		   {
+		     //v3:  // data_dnia zostala ustalona wczesniej w funkcjach while z nex i prev
+		     kal[el]=new Array(data_dnia.getTime(),data_dnia.getFullYear()+"."+zero((data_dnia.getMonth()+1))+"."+zero(data_dnia.getDate()),data_dnia.toLocaleDateString('en-US', { weekday: 'long' }),l_sp[dj].slice(),osoby[spolki.indexOf(l_sp[dj])],g[k][0]);
+			 el++
+		   }
+		  }
+		 }
+	    
+	    }
+		else   // wszystkie takie dni tygodnia we wszystkich tygodniach
+		{
+		 //każdy taki dzien tygodnia
+		 //rozmnozenie dla spolek i dodanie nazwisk usuniecie niepotrzbnych kolumn
+		
+		l_sp.length=0;
+		
+		if(g[k][4]) //sprawdza czy dla wszystkich spolek czy tylko dla wpisanych   !!!!!!!!!! bylo trzeba zrobic to samo dla tygodni dla dnia!!!!!!!!!!!!!
+		{
+          l_sp=g[k][4].split(",");		 
+		}
+		else
+		 l_sp=spolki.slice();
+		 
+		 
+		 
+		 //-!
+		  var data_dnia=new Date();
+			   if(document.getElementById("DniWolne").value.split(",").indexOf(i.toString())==-1)
+			    {
+				
+				 data_dnia.setTime(biezacy.getTime()) //jezeli dzien ktory ma byc nie jest wolny to ustalamy jego date
+				}
+				else
+				{ 
+				  var next=0;
+				  var prev=0;
+				  tendzien=new Date()
+				  //szukamy w przod az do dnia w ktorym bedzie normalny roboczy dzien chyba ze to bedzie poza miesiacem wtedy ustalamy na 1000
+				// console.log("pierwszy warunek "+document.getElementById("DniWolne").value.split(",").indexOf((i+next).toString()))
+				  while(document.getElementById("DniWolne").value.split(",").indexOf((i+next).toString())!=-1||dzienT(biezacy.getTime()+next*24*3600*1000)==0||dzienT(biezacy.getTime()+next*24*3600*1000)==6){
+				  	   next++;
+				     if((i+next)>dni_w_miesiacu){
+				        next=1000;
+				     break;
+				    }
+				   }
+				   				  //szukamy w tyl az do dnia w ktorym bedzie normalny roboczy dzien chyba ze to bedzie przed miesiacem wtedy ustalamy na 1000
+				   while(document.getElementById("DniWolne").value.split(",").indexOf((i-prev).toString())!=-1||dzienT(biezacy.getTime()-prev*24*3600*1000)==0||dzienT(biezacy.getTime()-prev*24*3600*1000)==6){
+				   prev++;
+				   if((i-prev)<0){
+				     prev=1000;
+				     break;
+				    }
+				   }
+				  //jezeli w przod jest wieksze badx rowne poprzedzajacym to ustalamy nastepny
+				   if(next<=prev)
+				    {
+					data_dnia.setTime(biezacy.getTime()+next*24*3600*1000)
+					}
+					else
+					{
+					data_dnia.setTime(biezacy.getTime()-prev*24*3600*1000)
+					}
+				 }
+		 //-!     
+		 
+		 
+		 
+           for(dj=0;dj<l_sp.length;dj++)
+		   {
+		     kal[el]=new Array(data_dnia.getTime(),data_dnia.getFullYear()+"."+zero((data_dnia.getMonth()+1))+"."+zero(data_dnia.getDate()),data_dnia.toLocaleDateString('en-US', { weekday: 'long' }),l_sp[dj].slice(),osoby[spolki.indexOf(l_sp[dj])],g[k][0]);
+			 el++
+		   }
+		}
+		
+	   }}
+	   
+   
+	 }
+	 else  // to sa zwykle soboty i niedziele chyba??
+	 {
+	   //to też trzeba zrobić dla każdje spółki
+	   for(dj=0;dj<spolki.length;dj++)
+             {
+			    kal[el]=new Array(biezacy.getTime(),biezacy.getFullYear()+"."+zero((biezacy.getMonth()+1))+"."+zero(biezacy.getDate()),biezacy.toLocaleDateString('en-US', { weekday: 'long' }),spolki[dj].slice(),"","");
+				el++;
+			  }
+
+	 }
+	 
+	
+	}	  
+	
+	
+	//sortujemy na wypadek jakby było niefajnie po dacie
+	kal=kal.sort(function(a,b){
+					return a[0] - b[0];
+					});
+	//a teraz sortujemy to samo ale po spolkach
+	kal=kal.sort(function(a, b) {
+        a = a[3]
+        b = b[3]
+        return (a === b) ? 0 : (a < b) ? -1 : 1
+    });
+	
+				
+				
+    //tworzymy ciagly tekst dla wszystkich spolek
+     var caly_text="sep=;\r\n"
+	 var naglowek='<?xml version="1.0"?>';
+	 zawartoscArkusza=""
+	 
+	 
+	 
+	 zawartoscArkusza+='<?mso-application progid="Excel.Sheet"?>\r\n'
++'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\r\n'
+ +'xmlns:o="urn:schemas-microsoft-com:office:office"\r\n'
+ +'xmlns:x="urn:schemas-microsoft-com:office:excel"\r\n'
+ +'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"\r\n'
+ +'xmlns:html="http://www.w3.org/TR/REC-html40">\r\n'
+ +'<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">\r\n'
+  +'<Author>YourName</Author>\r\n'
+  +'<LastAuthor>damian</LastAuthor>\r\n'
+  +'<Created>2015-06-25T18:25:51Z</Created>\r\n'
+  +'<Version>15.00</Version>\r\n'
+ +'</DocumentProperties>\r\n'
+ +'<OfficeDocumentSettings xmlns="urn:schemas-microsoft-com:office:office">\r\n'
+  +'<AllowPNG/>\r\n'
+ +'</OfficeDocumentSettings>\r\n'
+ +'<ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+ +'<WindowHeight>7755</WindowHeight>\r\n'
+  +'<WindowWidth>20490</WindowWidth>\r\n'
+  +'<WindowTopX>0</WindowTopX>\r\n'
+  +'<WindowTopY>0</WindowTopY>\r\n'
+  +'<ProtectStructure>False</ProtectStructure>\r\n'
+  +'<ProtectWindows>False</ProtectWindows>\r\n'
+ +'</ExcelWorkbook>\r\n'
+ +'<Styles>\r\n'
+  +'<Style ss:ID="Default" ss:Name="Normal">\r\n'
+   +'<Alignment ss:Vertical="Bottom"/>\r\n'
+   +'<Borders/>\r\n'
+   +'<Font ss:FontName="Calibri" x:Family="Swiss" ss:Size="11" ss:Color="#000000"/>\r\n'
+   +'<Interior/>\r\n'
+   +'<NumberFormat/>\r\n'
+   +'<Protection/>\r\n'
+  +'</Style>\r\n'
+    +'<Style ss:ID="StylNaglowka">\r\n'
+   +'<Alignment ss:Horizontal="Center" ss:Vertical="Center"/>\r\n'
+   +'<Borders>\r\n'
+    +'<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+   +'</Borders>\r\n'
+   +'<Font ss:FontName="Arial" x:CharSet="238" x:Family="Swiss" ss:Size="11" ss:Bold="1"/>\r\n'
+   +'<Interior ss:Color="#9BBB59" ss:Pattern="Solid"/>\r\n'
+  +'</Style>\r\n'
+  +'<Style ss:ID="Styldatadzien">\r\n'
+   +'<Alignment ss:Horizontal="Left" ss:Vertical="Center"/>\r\n'
+   +'<Borders>\r\n'
+     +'<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+     +'<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+     +'<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+     +'<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'</Borders>\r\n'
+   +'<Interior ss:Color="#F2F2F2" ss:Pattern="Solid"/>\r\n'
+  +'</Style>\r\n'
+  +'<Style ss:ID="StylCzynnosci">\r\n'
+   +'<Borders>\r\n'
+    +'<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+    +'<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>\r\n'
+   +'</Borders>\r\n'
+   +'<Font ss:FontName="Arial" x:Family="Swiss"/>\r\n'
+   +'<Interior ss:Color="#F2DCDB" ss:Pattern="Solid"/>\r\n'
+  +'</Style>\r\n'
+   +'<Style ss:ID="StylWolne">\r\n'
+   +'<Interior ss:Color="#BFBFBF" ss:Pattern="Solid"/>\r\n'
+   +'</Style>\r\n'
++'</Styles>\r\n'
+	 
+	 
+	 
+	 
+	 
+	 
+	 //tu mozna dodac jako pierwszy arkusz ten sumaryczny z podlinkowaniem do wszystkiego ale to w niedalekiej przyszlosci.
+	 
+	 
+	 
+	 
+	  zawartoscArkusza+= '<Worksheet ss:Name="rozwijana"><Table  ss:ExpandedColumnCount="1" ss:ExpandedRowCount="4" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">'
+	  +'<Row><Cell><Data ss:Type="String">Done</Data></Cell></Row>\r\n'
+	  +'<Row><Cell><Data ss:Type="String">Not Done</Data></Cell></Row>\r\n'
+	  +'<Row><Cell><Data ss:Type="String">In Progress</Data></Cell></Row>\r\n'
+	  	  +'<Row><Cell><Data ss:Type="String">N/A</Data></Cell></Row>\r\n'
+
+	  zawartoscArkusza+='</Table>\r\n'
+	  +'<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+   +'<PageSetup>\r\n'
+    +'<Header x:Margin="0.3"/>\r\n'
+    +'<Footer x:Margin="0.3"/>\r\n'
+    +'<PageMargins x:Bottom="0.75" x:Left="0.7" x:Right="0.7" x:Top="0.75"/>\r\n'
+   +'</PageSetup>\r\n'
+    +'<Unsynced/>\r\n'
+	+'<Visible>SheetHidden</Visible>'
+   +'<ProtectObjects>False</ProtectObjects>\r\n'
+   +'<ProtectScenarios>False</ProtectScenarios>\r\n'
+    +'</WorksheetOptions></Worksheet>'
+	 
+	 
+	 
+	 
+	var w=1
+	var u=0
+	var s=0;
+	var tensamdzien=0
+    var Naglowki=new Array("Data","Day of week","Entity","Responsible person","Activity","Status","Description")
+    var lista_list="";
+	var ll=2;
+    for(y=0;y<kal.length;y++)	//jeszcze uzupełnij o dni wolne! i ich style
+	   {
+	    if(w)
+		 {
+		   zawartoscArkusza+='<Worksheet ss:Name="'+spolki[s]+'"><Table>'
+		    +'<Column ss:AutoFitWidth="0" ss:Width="108.75" ss:Span="1"/>\r\n'
+			+'<Column ss:Index="3" ss:AutoFitWidth="0" ss:Width="73.5"/>\r\n'
+			+'<Column ss:AutoFitWidth="0" ss:Width="128.25"/>\r\n'
+			+'<Column ss:AutoFitWidth="0" ss:Width="382.5"/>\r\n'
+			+'<Column ss:AutoFitWidth="0" ss:Width="56.25"/>\r\n'
+			+'<Column ss:AutoFitWidth="0" ss:Width="371.25"/>\r\n'
+		   zawartoscArkusza+='<Row>'
+		   zawartoscArkusza+= '<Cell ss:StyleID="StylNaglowka" ><Data ss:Type="String">'+Naglowki.join('</Data></Cell><Cell ss:StyleID="StylNaglowka"><Data ss:Type="String">\r\n')+'</Data></Cell>'
+		    zawartoscArkusza+='</Row>'
+		  }
+		 
+		 var rstyl=(kal[y][4]==""&&kal[y][5]=="")?'ss:StyleID="StylWolne"':''
+		 var cstyl=(kal[y][4]==""&&kal[y][5]=="")?'':'ss:StyleID="Styldatadzien"'
+		 var astyl=(kal[y][4]==""&&kal[y][5]=="")?'':'ss:StyleID="StylCzynnosci"'
+		 
+		 lista_list+=(kal[y][5]!="")?'R'+ll+'C6,':''
+		 //kal jest teraz posortowany po spolkach i po dacie
+		 kal[y][6]=ll;
+		 ll++
+		 
+		 
+         if(!tensamdzien)
+		  {
+		   nazwa_dnia=kal[y][1];
+		  
+		  if(y<kal.length-1)
+		   while(kal[(y+tensamdzien+1)][1]==nazwa_dnia)  
+		    tensamdzien++
+			
+		if(tensamdzien>0){
+		    zawartoscArkusza+='<Row '+rstyl+'>\r\n'
+		   		   +'<Cell ss:MergeDown="'+tensamdzien+'" '+cstyl+'><Data ss:Type="String">'+kal[y][1]+'</Data></Cell>\r\n'
+				   +'<Cell ss:MergeDown="'+tensamdzien+'" '+cstyl+' ><Data ss:Type="String">'+kal[y][2]+'</Data></Cell>\r\n'
+				   +'<Cell ss:MergeDown="'+tensamdzien+'" '+cstyl+' ><Data ss:Type="String">'+kal[y][3]+'</Data></Cell>\r\n'
+		  }
+		  else
+		  {
+		   
+		   zawartoscArkusza+='<Row '+rstyl+'>\r\n'
+		   		   +'<Cell '+cstyl+' ><Data ss:Type="String">'+kal[y][1]+'</Data></Cell>\r\n'
+				   +'<Cell '+cstyl+' ><Data ss:Type="String">'+kal[y][2]+'</Data></Cell>\r\n'
+				   +'<Cell '+cstyl+' ><Data ss:Type="String">'+kal[y][3]+'</Data></Cell>\r\n'
+		  }
+		   tensamdzien++
+		   //tu te zespolone komurki w pionie	 ss:MergeDown="4"
+          }
+		  else
+		  {
+		     zawartoscArkusza+='<Row '+rstyl+'>\r\n'
+		  }
+		  
+		  zawartoscArkusza+='<Cell ss:Index="4" '+cstyl+' ><Data ss:Type="String">'+kal[y][4]+'</Data></Cell>\r\n'
+							+'<Cell '+astyl+' ><Data ss:Type="String">'+kal[y][5]+'</Data></Cell>\r\n'
+							+'</Row>\r\n'
+		  //a tu zawsze nazwisko i ktoco i pole wyporu ss:Index="4"
+	
+		
+		
+		tensamdzien--
+		
+		caly_text+="\""+kal[y].join("\";\"")+"\";\r\n";
+		output_s[s]+="\""+kal[y].slice(1,6).join("\";\"")+"\";\r\n";
+		w=0
+		if(y<(kal.length-1))
+		 {
+		  if(kal[y][3]!=kal[(y+1)][3])
+		  {
+		   
+		   zawartoscArkusza+='</Table>\r\n'
+		  +'<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+		  +'<Unsynced/>\r\n'
+		  +'<ProtectObjects>False</ProtectObjects>\r\n'
+		  +'<ProtectScenarios>False</ProtectScenarios>\r\n'
+		  +'</WorksheetOptions>\r\n'
+		  if(s==0){zawartoscArkusza+='<Selected/>\r\n'}
+							zawartoscArkusza+='<DataValidation xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+							+'<Range>'+lista_list.slice(0,-1)+'</Range>\r\n'
+							+'<Type>List</Type>\r\n'
+							+'   <Value>rozwijana!R1C1:R4C1</Value>\r\n'
+							+'</DataValidation>\r\n'
+		  zawartoscArkusza+='</Worksheet>'
+		   w=1;
+		   s++
+		   tensamdzien=0
+		   lista_list="";
+		   ll=2
+		  }
+		 }
+		 else
+		 {
+		 
+		  zawartoscArkusza+='</Table>\r\n'
+		  +'<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+		  +'<Unsynced/>\r\n'
+		  +'<ProtectObjects>False</ProtectObjects>\r\n'
+		  +'<ProtectScenarios>False</ProtectScenarios>\r\n'
+		  +'</WorksheetOptions>\r\n'
+							+'<DataValidation xmlns="urn:schemas-microsoft-com:office:excel">\r\n'
+							+'<Range>'+lista_list.slice(0,-1)+'</Range>\r\n'
+							+'<Type>List</Type>\r\n'
+							+'<Value>rozwijana!R1C1:R4C1</Value>\r\n'
+							+'</DataValidation>\r\n'
+		  zawartoscArkusza+='</Worksheet>'
+		 }
+	   }
+     
+	 // zawartoscArkusza+='</Workbook>' // to za zbiorczy
+	 
+	 u=0
+	 s=0;
+    for(y=0;y<kal.length;y++)	
+	   {
+	    caly_text+="\""+kal[y].join("\";\"")+"\";\r\n";
+		output_s[s]+="\""+kal[y].slice(1,6).join("\";\"")+"\";\r\n";
+		if(s<spolki.length-1)
+		 if(kal[y][3]!=kal[(y+1)][3])
+		  s++
+		
+	   }
+	  
+      //produkujemy zbiorczaka
+	  //najpierw sort
+	  // kal est juz posortowany po spolkach wie sort najpierw po czynnosciach kal[y][5]
+	  //nastepnie sort po dacie kal[y][1]
+	  
+	 kal=kal.sort(function(a, b) { //sort po czynnosciach
+        a = a[5]
+        b = b[5]
+        return (a === b) ? 0 : (a < b) ? -1 : 1
+    });
+	
+	kal=kal.sort(function(a, b) { //sort po dacie
+        a = a[1]
+        b = b[1]
+        return (a === b) ? 0 : (a < b) ? -1 : 1
+    });
+	
+	
+	  var Naglowki=new Array("Date","Day of week","Activity")
+	  var NaglowkiZ=new Array();
+	 NaglowkiZ=Naglowki.concat(spolki)
+	//teraz for po wszystkich i generujemy worksheet'a
+	var zbiorczyText='<Worksheet ss:Name="global">\r\n\t<Table>\r\n'
+	 +'\t<Column ss:AutoFitWidth="0" ss:Width="108.75" ss:StyleID="Styldatadzien" />\r\n' //A
+			+'\t<Column ss:AutoFitWidth="0" ss:Width="73.5" ss:StyleID="Styldatadzien" />\r\n' //B
+			+'\t<Column ss:AutoFitWidth="0" ss:Width="250.5" ss:StyleID="StylCzynnosci" />\r\n'
+	                 +'\t\t<Row>\r\n'
+					 +'\t\t\t<Cell ss:StyleID="StylNaglowka" ><Data ss:Type="String">'+NaglowkiZ.join('</Data></Cell>\r\n\t\t\t<Cell ss:StyleID="StylNaglowka"><Data ss:Type="String">')+'</Data></Cell>\r\n'
+					 +'\t\t</Row>\r\n'
+					 
+					 
+	var rozne_czynnosci=new Array()
+		var czynnosc=0
+		rozne_czynnosci[czynnosc]=""
+		var lancuch_ze_spolkami=""
+		var index_spolki=0
+		
+		
+		
+		
+		       
+			   spa=new Array()
+        		 spa.length=0
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String" > --- </Data></Cell>\r\n'
+		
+		
+		
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//co z takim który jest tylko jedna data i jedna czynnosc wtedy zonk bo to pomijamy
+	
+     //v9	
+	for(damian=0;damian<kal.length;damian++)
+	 {
+	     
+		 
+	  // console.log("\t"+damian+"\t\t"+kal[damian][1]+" \t"+kal[damian][2]+" \t"+kal[damian][3]+" \t"+kal[damian][4]+" \t"+kal[damian][5]+" \t"+kal[damian][6]+"\r\n")
+		
+	    if(damian==0)//pierwszy rekord
+		 {
+		   spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'  	   
+		 }
+		else
+		 {
+		  if(kal[damian-1][1]==kal[damian][1])//ten sam dzien
+		   { 
+            
+			   if(kal[damian-1][5]==kal[damian][5]) //taka sama czynnosc jak poprzednia
+			    {
+				 spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+				 
+				}
+				else //nowa czynność
+				{
+				 
+				 //  przepisuje wszystkie czynnosci
+				  var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row >\r\n\t\t\t<Cell ss:Index="3">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian-1][5]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+				 //
+				 
+				 //formatuje tablice spulkek dla konkretnej czynnosci
+				  spa.length=0 
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String" > --- </Data></Cell>\r\n'
+				 
+				 //  
+				 
+				   //pierwsza czynnosc w nowym dniu:
+				  spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+
+				   
+				 czynnosc++
+				 rozne_czynnosci[czynnosc]=""
+				}
+			  
+		   }
+		   else //zmiana dnia
+		   {
+		   var rstyl=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'ss:StyleID="StylWolne"':''
+		     //tu moisisz jeszcze scalić ostatnia czynnosc bo wypada zarazem przy dniu jak i czynnosci i nie przechodzi przez inna czynniosc wywalone pzez inny dzien
+			 var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row >\r\n\t\t\t<Cell ss:Index="3">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian-1][5]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			   
+			 //
+			 
+		     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+			  
+			 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+			 
+			 zbiorczyText+="\t\t<Row "+rstyl+">\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian-1][1]+'</Data></Cell>\r\n'
+				     +merge+'<Data ss:Type="String">'+kal[damian-1][2]+'</Data></Cell>\r\n'
+	                 +str
+				
+			 
+		   
+			
+			//formatuje tablice spulkek dla konkretnej czynnosci
+			 spa.length=0
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String"> --- </Data></Cell>\r\n'
+			//
+		
+			//pierwsza czynnosc danego dnia
+			   spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+			  //pierwsza czynnosc dane dnia
+			  
+			  if(damian==(kal.length-1))
+			   {
+			     var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row>\t\t\t<Cell ss:Index="3">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian][5]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+			     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+					
+					
+						 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+				
+				
+					
+					zbiorczyText+="\t\t<Row>\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian][1]+'</Data></Cell>\r\n'
+				     +merge+'<Data ss:Type="String">'+kal[damian][2]+'</Data></Cell>\r\n'
+	                 +str
+			     
+			   }
+			   
+			 rozne_czynnosci.length=0;
+			 czynnosc=0 //czynnosc w obrebie jednego nia
+			 rozne_czynnosci[czynnosc]=""
+			
+		   }
+		 }
+		 
+		  if(damian==(kal.length-1))
+			   {
+			     var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row>\t\t\t<Cell ss:Index="3">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian][5]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+			     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+					
+					
+						 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+				
+				
+					
+					zbiorczyText+="\t\t<Row>\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian][1]+'</Data></Cell>\r\n'
+				     +merge+'<Data ss:Type="String">'+kal[damian][2]+'</Data></Cell>\r\n'
+	                 +str
+			     
+			   }
+		 
+		 
+		 
+	 }
+		
+		
+		
+			zbiorczyText+='\t</Table>\r\n'
+	                +'</Worksheet>\r\n'
+					//+'</Workbook>'
+					
+					
+	zawartoscArkusza+=zbiorczyText;
+		
+					
+//zawartoscArkusza+='</Workbook>';
+
+
+//************************ drugi raz to samo ale sort po czynnosciach nie po datach! uwaga te same zmienne co wyżej
+
+
+//trzeba w całyk kodzie zamieć 1<->5
+
+
+ kal=kal.sort(function(a, b) { //sort po czynnosciach
+        a = a[5]
+        b = b[5]
+        return (a === b) ? 0 : (a < b) ? -1 : 1
+    });
+	
+	
+	
+	  var Naglowki=new Array("Activity","Date") //*
+	  var NaglowkiZ=new Array();
+	 NaglowkiZ=Naglowki.concat(spolki)
+	//teraz for po wszystkich i generujemy worksheet'a
+	var zbiorczyText='<Worksheet ss:Name="global2">\r\n\t<Table>\r\n'
+	+'\t<Column ss:AutoFitWidth="0" ss:Width="250.5" ss:StyleID="StylCzynnosci" />\r\n'
+	 +'\t<Column ss:AutoFitWidth="0" ss:Width="108.75" ss:StyleID="Styldatadzien" />\r\n' //A
+
+	                 +'\t\t<Row>\r\n'
+					 +'\t\t\t<Cell ss:StyleID="StylNaglowka" ><Data ss:Type="String">'+NaglowkiZ.join('</Data></Cell>\r\n\t\t\t<Cell ss:StyleID="StylNaglowka"><Data ss:Type="String">')+'</Data></Cell>\r\n'
+					 +'\t\t</Row>\r\n'
+					 
+					 
+	var rozne_czynnosci=new Array()
+		var czynnosc=0
+		rozne_czynnosci[czynnosc]=""
+		var lancuch_ze_spolkami=""
+		var index_spolki=0
+		
+		
+		
+		
+		       
+			   spa=new Array()
+        		 spa.length=0
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String" > --- </Data></Cell>\r\n'
+		
+		
+		
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//co z takim który jest tylko jedna data i jedna czynnosc wtedy zonk bo to pomijamy
+	
+     //v9	
+	for(damian=0;damian<kal.length;damian++)
+	 if(kal[damian][5])//*
+	 {
+	     
+		 
+	//  console.log("\t"+damian+"\t\t"+kal[damian][1]+" \t"+kal[damian][2]+" \t"+kal[damian][3]+" \t"+kal[damian][4]+" \t"+kal[damian][5]+" \t"+kal[damian][6]+"\r\n")
+		
+	    if(damian==0)//pierwszy rekord
+		 {
+		   spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'  	   
+		 }
+		else
+		 {
+		  if(kal[damian-1][5]==kal[damian][5])//********ta sama czynnosc 
+		   { 
+            
+			   if(kal[damian-1][1]==kal[damian][1]) //**** ta sama data 
+			    {
+				 spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+				 
+				}
+				else //nowa czynność
+				{
+				 
+				 //  przepisuje wszystkie czynnosci
+				  var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row >\r\n\t\t\t<Cell ss:Index="2">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian-1][1]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+				 //
+				 
+				 //formatuje tablice spulkek dla konkretnej czynnosci
+				  spa.length=0 
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String" > --- </Data></Cell>\r\n'
+				 
+				 //  
+				 
+				   //pierwsza czynnosc w nowym dniu:
+				  spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+
+				   
+				 czynnosc++
+				 rozne_czynnosci[czynnosc]=""
+				}
+			  
+		   }
+		   else //zmiana dnia
+		   {
+		   var rstyl=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'ss:StyleID="StylWolne"':''
+		     //tu moisisz jeszcze scalić ostatnia czynnosc bo wypada zarazem przy dniu jak i czynnosci i nie przechodzi przez inna czynniosc wywalone pzez inny dzien
+			 var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row >\r\n\t\t\t<Cell ss:Index="2">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian-1][1]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			   
+			 //
+			 
+		     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+			  
+			 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+			 
+			 zbiorczyText+="\t\t<Row "+rstyl+">\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian-1][5]+'</Data></Cell>\r\n'
+	                 +str
+				
+			 
+		   
+			
+			//formatuje tablice spulkek dla konkretnej czynnosci
+			 spa.length=0
+				  for(oo=0;oo<spolki.length;oo++)
+				   spa[oo]='\t\t\t<Cell ss:StyleID="StylWolne"><Data ss:Type="String"> --- </Data></Cell>\r\n'
+			//
+		
+			//pierwsza czynnosc danego dnia
+			   spa[spolki.indexOf(kal[damian][3])]='\t\t\t<Cell ss:Formula="='+kal[damian][3]+'!R'+kal[damian][6]+'C6"></Cell>\r\n'
+			  //pierwsza czynnosc dane dnia
+			  
+			  if(damian==(kal.length-1))
+			   {
+			     var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row>\t\t\t<Cell ss:Index="2">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian][1]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+			     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+					
+					
+						 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+				
+				
+					
+					zbiorczyText+="\t\t<Row>\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian][5]+'</Data></Cell>\r\n'
+	                 +str
+			     
+			   }
+			   
+			 rozne_czynnosci.length=0;
+			 czynnosc=0 //czynnosc w obrebie jednego nia
+			 rozne_czynnosci[czynnosc]=""
+			
+		   }
+		 }
+		 
+		  if(damian==(kal.length-1))
+			   {
+			     var cellin=(czynnosc==0)?'\t\t\t<Cell>':'\t\t<Row>\t\t\t<Cell ss:Index="2">'  //jesli pierwsza czynnosc danego dnia to tylko cell jesli kolejne to juz row oraz index=3
+				  //                            cell albo row                    nazwa czynnosci                     polki dla czynnosci  
+		          rozne_czynnosci[czynnosc]+=cellin+'<Data ss:Type="String">'+kal[damian][1]+'</Data></Cell>\r\n'+spa.join("")+'\r\n\t\t</Row>\r\n'//dana czynnosc i spolki sa wszystkie w jednym  wierszu
+			        
+			     var merge=(rozne_czynnosci.length>1)?'\t\t\t<Cell ss:MergeDown="'+(rozne_czynnosci.length-1)+'" >':'\t\t\t<Cell>'
+					
+					
+						 str=""
+	
+			 
+			  for(ul=0;ul<rozne_czynnosci.length;ul++)
+			     str+=rozne_czynnosci[ul]
+			    str=(kal[damian-1][4]==""&&kal[damian-1][5]=="")?'\t\t</Row>\r\n':str
+				
+				
+					
+					zbiorczyText+="\t\t<Row>\r\n"
+					 +merge+'<Data ss:Type="String">'+kal[damian][5]+'</Data></Cell>\r\n'
+				     +str
+			     
+			   }
+		 
+		 
+		 
+	 }
+		
+		
+		
+			zbiorczyText+='\t</Table>\r\n'
+	                +'</Worksheet>\r\n'
+					+'</Workbook>'
+					
+					
+	zawartoscArkusza+=zbiorczyText;
+		
+					
+//zawartoscArkusza+='</Workbook>';
+
+
+//**************************************8
+
+
+
+
+	
+/* for(){ po całym aktualnym mieiacu z zapisaniem dni roboczych i sprawdzaniem dat dni i które to są 
+ 
+ }*/
+ //document.getElementById('main').innerHTML="<a href='' id='link' download='code.csv'>Download Above Code</a>";
+ document.getElementById('tt').textContent=(naglowek +zawartoscArkusza); //v3 caly_text//
+  //v2: document.getElementById('tt').textContent=output_str;
+ //document.getElementById('down').disabled=false;
+ 
+
+ /* for(dj=0;dj<spolki.length;dj++)
+  {
+  nazwa=spolki[dj]+".csv";
+  idd="down-"+spolki[dj];
+
+  przyciski+="<button onclick='javascript:download("+dj+", "+dj+")' id='"+idd+"'>Pobierz "+nazwa+"</button>"
+  }                              
+
+*/
+// zawartoscArkusza=window.btoa(unescape(encodeURIComponent(naglowek+zawartoscArkusza)));
+  zawartoscArkusza=encodeURIComponent(naglowek+zawartoscArkusza);
+
+ var przyciski="";
+ przyciski+="<button onclick='javascript:download()' id='download'>Pobierz czeklista.xls</button>"
+
+/*	  
+	  zaw+='</Workbook>'
+console.log(zaw)
+
+      link = document.createElement("A");
+	  	  console.log("ok");
+
+      link.href = naglowek + window.btoa(unescape(encodeURIComponent(zaw))) ;
+	  	  console.log("ok1");
+
+      link.download = 'Workbook.xls';
+	  	  console.log("ok2");
+
+      link.target = '_blank';
+	  	  console.log("ok3");
+
+      document.body.appendChild(link);
+	  	  console.log("ok4");
+
+      link.click();
+	  	  console.log("ok5");
+
+      document.body.removeChild(link);
+	  console.log("ok6");
+console.log(link.href)
+
+*/
+
+
+document.getElementById('main').innerHTML=przyciski;
+ 
+ 
+ 
+ 
+ 
+}
+ 
+  
+</script>
+<style>
+  #byte_content {
+    margin: 5px 0;
+    max-height: 100px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  #byte_range { margin-top: 5px; }
+</style>
+
+</head>
+ <body onload="Fmiesiace(),start()" style=" background-color: grey" bgcolor="cdf8ff">
+
+
+<select name="miesiace" id="miesiace" onchange='start()' required="required">
+</select>
+
+<input id="files" name="file" type="file">
+  <button onclick="start()" id="link">przeczytaj plik</button>  
+  Dni wolne oddzielone przecinkami<input size="20" id="DniWolne" onchange="start()" oninput="start()" type="text"><br>
+
+  <div id="main"> </div> <br>
+ 
+  <textarea id="tt" cols="120" rows="100">Wybierz plik!</textarea>
+
+
+
+
+  
+
+
+
+ 
+
+</body></html>
